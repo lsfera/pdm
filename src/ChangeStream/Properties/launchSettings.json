@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "pdm": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    }
+  }
+}

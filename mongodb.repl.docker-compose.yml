@@ -1,0 +1,85 @@
+version: "3.8"
+
+services:
+  mongo1:
+    image: mongo:4.4.2-bionic
+    container_name: mongo1
+    entrypoint: [ "/usr/bin/mongod", "--config", "/etc/mongo/mongod.conf" ]
+    volumes:
+      - ${BASE_PATH}/docker/mongodb/mongo.conf:/etc/mongo/mongod.conf:ro
+      #- ./data/mongo-1:/data/db
+    ports:
+      - 27017:27017
+    env_file:
+      - ./.env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PWD}
+      MONGO_INITDB_DATABASE: ${MONGO_ADMIN_DB}
+    healthcheck:
+      test: test $$(echo "rs.initiate({_id:'rs0',members:[{_id:0,host:\"mongo1:27017\"},{_id:1,host:\"mongo2:27017\"},{_id:2,host:\"mongo3:27017\"}]}).ok || rs.status().ok" | mongo --port 27017 --quiet) -eq 1
+      interval: 10s
+      start_period: 30s
+
+  mongo2:
+    image: mongo:4.4.2-bionic
+    container_name: mongo2
+    entrypoint: [ "/usr/bin/mongod", "--config", "/etc/mongo/mongod.conf" ]
+    volumes:
+      - ${BASE_PATH}/docker/mongodb/mongo.conf:/etc/mongo/mongod.conf:ro
+      # - ./data/mongo-2:/data/db
+    ports:
+      - 27018:27017
+
+  mongo3:
+    image: mongo:4.4.2-bionic
+    container_name: mongo3
+    entrypoint: [ "/usr/bin/mongod", "--config", "/etc/mongo/mongod.conf" ]
+    volumes:
+      - ${BASE_PATH}/docker/mongodb/mongo.conf:/etc/mongo/mongod.conf:ro
+      # - ./data/mongo-3:/data/db
+    ports:
+      - 27019:27017
+
+  mongodb-sidecar:
+    image: mongo:4.4.2-bionic
+    depends_on:
+      - mongo1
+    env_file:
+      - ./.env
+    volumes:
+      - ${BASE_PATH}/docker/mongodb/setup.sh:/scripts/setup.sh:ro
+      - ${BASE_PATH}/docker/mongodb/dbSetup.js:/usr/local/bin/dbSetup.js:ro
+    restart: on-failure
+    entrypoint: [ "bash", "/scripts/setup.sh"]
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: "mongo-express"
+    ports:
+      - 8088:8081
+    depends_on: 
+      - mongo1
+    env_file:
+      - ./.env
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo1
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_USER}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_PWD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_USER}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_PWD}
+      - ME_CONFIG_MONGODB_AUTH_DATABASE=pdm
+      # - ME_CONFIG_OPTIONS_EDITORTHEME=night
+      # - ME_CONFIG_REQUEST_SIZE=100kb
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"
+        max-size: "500m"
+    restart: always
+
+networks:
+  default:
+    external:
+      name: $NETWORK
