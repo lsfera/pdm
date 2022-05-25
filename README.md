@@ -14,6 +14,8 @@ docker-compose \
   up --build
 ```
 
+Browse http://localhost:8088 test@test123, pdm db for a UI
+
 And - finally - the clean up command:
 
 ```

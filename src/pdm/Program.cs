@@ -1,5 +1,4 @@
-﻿using System.Text.Json;
-using MongoDB.Driver;
+﻿using MongoDB.Driver;
 
 namespace PDM
 {
@@ -13,89 +12,46 @@ namespace PDM
             var collection = client.GetDatabase("pdm").GetCollection<Fescion>("fescion",
                 new MongoCollectionSettings
                     { ReadConcern = ReadConcern.Snapshot, WriteConcern = WriteConcern.WMajority });
-            var streamCollection = client.GetDatabase("pdm").GetCollection<Stream<Fescion>>("stream",
-                new MongoCollectionSettings { WriteConcern = WriteConcern.WMajority });
             var token = CancellationToken.None;
 
 
-            var ops = Enumerable.Range(1, 100).Select(i =>
+            var ops = Enumerable.Range(1, 10).Select(i  =>
             {
 
                 var msg = new Fescion(
-                    id: "c8",
-                    c10: "c10",
-                    gtin: new List<String> { $"gtin{i}" },
-                    materials: new[] { new Material(id: "mat") },
-                    streamId: Guid.NewGuid()
+                    Id: "c8",
+                    C10: "c10",
+                    Gtin: new List<String> { $"gtin{i}" },
+                    Materials: new[] { new Material(Id: "mat") }
                 );
-                try
-                {
+                return collection.UpdateOneAsync(
+                    Builders<Fescion>.Filter.Eq(d => d.Id, msg.Id),
+                    Builders<Fescion>.Update
+                        .AddToSetEach(_ => _.Gtin, msg.Gtin)
+                        .AddToSetEach(_ => _.Materials, msg.Materials)
+                        .Set(_ => _.C10, msg.C10),
+                    options: new UpdateOptions
+                    {
+                        IsUpsert = true,
+                    }, token);
 
 
-                    return collection.FindOneAndUpdateAsync(
-                            Builders<Fescion>.Filter.Eq(d => d.id, msg.id),
-                                Builders<Fescion>.Update
-                                .AddToSetEach(_ => _.gtin, msg.gtin)
-                                .Set(_ => _.streamId, msg.streamId)
-                                .Set(_ => _.c10, msg.c10)
-                                .AddToSetEach(_ => _.materials, msg.materials),
-                    options: new FindOneAndUpdateOptions<Fescion>
-                            {
-                                ReturnDocument = ReturnDocument.Before,
-                                IsUpsert = true,
-                            }, token)
-                        .ContinueWith(ta =>
-                        {
-                            Console.WriteLine(ta.Status);
-                            if (ta.Exception != null)
-                                Console.WriteLine(ta.Exception.GetBaseException());
-
-                            var info = ta.Result;
-
-                            if (info == null)
-                                return Task.CompletedTask;
-
-                            Console.WriteLine($"{JsonSerializer.Serialize(info)}");
-
-
-                            return streamCollection.UpdateOneAsync(
-                                Builders<Stream<Fescion>>.Filter.Eq(d => d.id, info.streamId),
-                                Builders<Stream<Fescion>>.Update
-                                    .Set(_ => _.originalDocument, info),
-                                options: new UpdateOptions
-                                {
-                                    IsUpsert = true,
-                                },
-
-                                token);
-
-
-                            //var before = JsonNode.Parse(JsonSerializer.Serialize(b));
-                            //var current = JsonNode.Parse(JsonSerializer.Serialize(a));
-                            //var diff = before.Diff(current, new JsonPatchDeltaFormatter());
-
-
-                            //Console.WriteLine(before);
-                            //Console.WriteLine("current");
-                            //Console.WriteLine(current);
-                            //Console.WriteLine("diff");
-                            //Console.WriteLine(diff);
-                        }, token)
-                        .Unwrap();
-
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-
-                    throw;
-                }
             });
             return Task.WhenAll(ops).ContinueWith(_ => { Console.WriteLine($"done with status:{_.Status}"); }, token);
         }
     }
 }
 
-public  record   Material(String id);
-public  record  Fescion(String id, String c10, List<String> gtin, Material[] materials, Guid streamId);
-public record Stream<T>(Guid id, T originalDocument) where T : class;
+public  record   Material(String Id);
+public  record  Fescion(String Id, String C10, List<String> Gtin, Material[] Materials);
+
+//var before = JsonNode.Parse(JsonSerializer.Serialize(b));
+//var current = JsonNode.Parse(JsonSerializer.Serialize(a));
+//var diff = before.Diff(current, new JsonPatchDeltaFormatter());
+
+
+//Console.WriteLine(before);
+//Console.WriteLine("current");
+//Console.WriteLine(current);
+//Console.WriteLine("diff");
+//Console.WriteLine(diff);
